@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: civicvoice
+    env: node
+    plan: free
+    buildCommand: npm run build
+    startCommand: npm start
+    envVars:
+      - key: SARVAM_API_KEY
+        sync: false
+      - key: WEB_ORIGIN
+        value: "*"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false

@@ -1,0 +1,16 @@
+{
+  "name": "civicvoice",
+  "version": "1.0.0",
+  "description": "Voice-first civic complaint portal in Indian languages",
+  "scripts": {
+    "install:all": "npm --prefix client install && npm --prefix server install",
+    "build:client": "npm --prefix client run build",
+    "build": "npm --prefix client install && npm --prefix client run build && npm --prefix server install",
+    "start": "npm --prefix server start",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev"
+  },
+  "keywords": ["sarvam-ai", "civic", "voice", "speech-to-text", "tts", "react", "express"],
+  "author": "",
+  "license": "ISC"
+}
