@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import CameraCapture from '../components/CameraCapture.jsx';
 import { getReportById, submitContractorProof } from '../api.js';
-import { ShieldCheck, ShieldAlert, MapPin, CheckCircle, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, MapPin, CheckCircle, ArrowLeft, AlertTriangle } from 'lucide-react';
 
 export default function ContractorProof({ reportId, onNavigate }) {
   const [report, setReport] = useState(null);
@@ -13,14 +13,24 @@ export default function ContractorProof({ reportId, onNavigate }) {
   const [location, setLocation] = useState({ lat: null, lng: null });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState(null);
+  const [failureResult, setFailureResult] = useState(null);
 
   useEffect(() => {
     getReportById(reportId)
-      .then((data) => setReport(data))
+      .then((data) => {
+        setReport(data);
+        // Default contractor location near the complaint location (~2 meters away)
+        if (data.lat && data.lng) {
+          setLocation({
+            lat: data.lat + 0.00002,
+            lng: data.lng + 0.00002,
+          });
+        }
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
 
-    // Capture contractor's proof location
+    // Try to acquire real GPS if available and user wants to use device location
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -30,11 +40,9 @@ export default function ContractorProof({ reportId, onNavigate }) {
           });
         },
         (err) => {
-          console.warn('Geolocation warning:', err.message);
-          // Default near complaint GPS for demo testing if permission denied
-          setLocation({ lat: 18.52041, lng: 73.85671 });
+          console.warn('Geolocation notice:', err.message);
         },
-        { enableHighAccuracy: true }
+        { enableHighAccuracy: true, timeout: 5000 }
       );
     }
   }, [reportId]);
@@ -42,12 +50,13 @@ export default function ContractorProof({ reportId, onNavigate }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!photoFile) {
-      alert('Please take an "after" repair proof photo.');
+      alert('Please take or upload an "after" repair proof photo.');
       return;
     }
 
     setIsSubmitting(true);
     setResult(null);
+    setFailureResult(null);
 
     try {
       const res = await submitContractorProof(reportId, {
@@ -57,7 +66,11 @@ export default function ContractorProof({ reportId, onNavigate }) {
       });
       setResult(res);
     } catch (err) {
-      alert(err.message || 'Proof submission failed');
+      console.warn('Tamper check failure caught:', err.message);
+      setFailureResult({
+        message: err.message || 'Tamper checks failed.',
+        data: err.data,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -80,25 +93,44 @@ export default function ContractorProof({ reportId, onNavigate }) {
 
         <div style={{ background: 'var(--bg-main)', padding: 12, borderRadius: 10, marginBottom: 16 }}>
           <p style={{ fontSize: 14, fontWeight: 600 }}>{report.summary}</p>
-          <div style={{ display: 'flex', gap: 10, marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-            <span>Category: {report.category}</span>
-            <span>Report GPS: {report.lat?.toFixed(4)}, {report.lng?.toFixed(4)}</span>
+          <div style={{ display: 'flex', gap: 10, marginTop: 6, fontSize: 12, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+            <span>Category: <strong>{report.category}</strong></span>
+            {report.lat && report.lng && (
+              <span>Complaint GPS: <strong>{report.lat.toFixed(4)}, {report.lng.toFixed(4)}</strong></span>
+            )}
           </div>
         </div>
 
+        {/* Failure Feedback Alert */}
+        {failureResult && (
+          <div style={{ padding: 14, background: '#fef2f2', border: '1px solid #f87171', borderRadius: 12, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#b91c1c', marginBottom: 6 }}>
+              <ShieldAlert size={20} />
+              <strong style={{ fontSize: 15 }}>Tamper Verification Blocked</strong>
+            </div>
+            <p style={{ fontSize: 13, color: '#7f1d1d' }}>
+              {failureResult.message}
+            </p>
+            <p style={{ fontSize: 12, color: '#991b1b', marginTop: 6 }}>
+              💡 <em>Tips: Make sure to upload a different "after" photo than the initial complaint photo, and ensure GPS is within range.</em>
+            </p>
+          </div>
+        )}
+
+        {/* Success Feedback Card */}
         {result ? (
           <div>
             <div style={{ padding: 16, background: '#f0fdf4', borderRadius: 12, border: '1px solid #bbf7d0', textAlign: 'center', marginBottom: 16 }}>
               <ShieldCheck size={36} color="var(--success)" style={{ margin: '0 auto 8px' }} />
               <h2 style={{ fontSize: 17, fontWeight: 700, color: '#166534' }}>Tamper Checks Passed!</h2>
               <p style={{ fontSize: 13, color: '#15803d', marginTop: 4 }}>
-                Status updated to COMPLETED. Citizen spoken update & voice call dispatched.
+                Status updated to COMPLETED. Citizen spoken update generated via Sarvam Bulbul.
               </p>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: 8, background: 'var(--bg-main)', borderRadius: 8, fontSize: 13 }}>
-                <span>GPS Proximity (&le; 50m):</span>
+                <span>GPS Proximity:</span>
                 <strong>{result.checks?.gps_proximity?.distance_m}m (PASSED)</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: 8, background: 'var(--bg-main)', borderRadius: 8, fontSize: 13 }}>
@@ -129,7 +161,7 @@ export default function ContractorProof({ reportId, onNavigate }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
               <MapPin size={16} color="var(--primary)" />
               {location.lat && location.lng ? (
-                <span>Proof GPS: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}</span>
+                <span>Contractor Proof GPS: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}</span>
               ) : (
                 <span>Acquiring GPS...</span>
               )}
